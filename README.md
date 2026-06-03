@@ -19,7 +19,7 @@ El código base está estructurado de manera modular para facilitar su lectura y
 ## ⚙️ Requisitos y DependenciasEl proyecto está escrito en Python 3 y utiliza librerías estándar de computación científica.
 Bashpip install numpy matplotlib.
 
-##🚀 Uso
+## 🚀 Uso
 Para ejecutar la simulación, simplemente clona el repositorio y corre el script principal. Dependiendo de las capacidades de tu equipo, la simulación de los 180 días puede tomar algunos minutos debido a la densidad del cálculo de las EDPs espaciales.
 Bashgit clone https://github.com/JUCEN031192/AvnerFridman.git
 cd AvnerFridman
