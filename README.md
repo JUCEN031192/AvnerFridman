@@ -17,13 +17,17 @@ El código base está estructurado de manera modular para facilitar su lectura y
 * Visualización y Análisis: Herramienta de graficación para interpretar la evolución temporal de las 30 variables clave del ecosistema hepático.
 
 ## ⚙️ Requisitos y DependenciasEl proyecto está escrito en Python 3 y utiliza librerías estándar de computación científica.
+```
 Bashpip install numpy matplotlib.
+```
 
 ## 🚀 Uso
 Para ejecutar la simulación, simplemente clona el repositorio y corre el script principal. Dependiendo de las capacidades de tu equipo, la simulación de los 180 días puede tomar algunos minutos debido a la densidad del cálculo de las EDPs espaciales.
+```
 Bashgit clone https://github.com/JUCEN031192/AvnerFridman.git
 cd AvnerFridman
 python simulacion_vhb.py
+```
 
 Al finalizar el cálculo del motor, el script desplegará automáticamente una cuadrícula interactiva con 30 paneles mostrando la evolución poblacional y molecular a lo largo del tiempo.
 
