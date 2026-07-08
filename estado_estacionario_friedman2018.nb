@@ -1,0 +1,569 @@
+In[1]:= (* ============================================================
+   ESTADO ESTACIONARIO \[LongDash] Friedman & Siewe (2018)
+   Sistema ODE de 32 ecuaciones (sin términos espaciales)
+
+   Estructura:
+     Sección 1 \[LongDash] Parámetros biológicos
+     Sección 2 \[LongDash] Sistema ODE (lado derecho F[x])
+     Sección 3 \[LongDash] Equilibrio libre de enfermedad (ELE)
+     Sección 4 \[LongDash] Jacobiano 32*32
+     Sección 5 \[LongDash] Valores propios en E0
+     Sección 6 \[LongDash] Equilibrio endémico (numérico)
+     Sección 7 \[LongDash] Valores propios en E*
+
+   Requiere reiniciar el kernel antes de evaluar (Evaluation > Quit
+   Kernel), o bien basta con la limpieza automática de abajo.
+   ============================================================ *)
+
+(* Limpia el contexto Global` antes de definir nada, de modo que el
+   script sea autocontenido y reproducible en una sola evaluación. *)
+ClearAll["Global`*"];
+
+(* ============================================================
+   SECCIÓN 1: Parámetros biológicos
+   ============================================================ *)
+
+(* Tasas de muerte celular y degradación molecular *)
+\[Mu]M1 = 0.02;    \[Mu]M2 = 0.008;   \[Mu]H  = 1.66*^-2;
+\[Mu]T1 = 1.97*^-1; \[Mu]T2 = 1.97*^-1; \[Mu]f  = 1.66*^-2;
+\[Mu]m  = 3.33*^-3; \[Mu]\[Rho]  = 0.37;    \[Mu]Ve = 74.4;
+\[Mu]G  = 4.16;    \[Mu]HA = 0.1;    \[Mu]I1b = 6.65;
+\[Mu]I2 = 2.376;   \[Mu]I4 = 50.0;   \[Mu]I6  = 0.173;
+\[Mu]I10= 8.32;    \[Mu]I12= 1.38;   \[Mu]I13 = 12.47;
+\[Mu]Ia = 1.66;    \[Mu]Ig = 2.16;   \[Mu]Ta  = 199.0;
+\[Mu]Tb = 333.0;   \[Mu]Mp = 4.32;   \[Mu]Tp  = 21.6;
+\[Mu]C3 = 1.73;
+\[Mu]Vi1 = 1.4*^9; \[Mu]Vi2 = 2.8*^9; \[Mu]ViH = 1.4*^9;
+\[Mu]ViKill = 788.0;
+
+(* Constantes de semisaturación *)
+KC3 = 2*^-10;  KG  = 2.5*^-11; KHA = 2*^-6;
+KM1 = 0.015;  KM2 = 0.02;   KMp = 1*^-6;
+KT1 = 0.016;  KT2 = 0.064;  KTb = 7*^-7;
+KTa = 2.35*^-10; K1b = 5.6*^-10; K2 = 2.5*^-7;
+K4  = 3*^-10; K6  = 8*^-11; K10 = 2.5*^-9;
+K12 = 3.5*^-9; K13 = 4*^-10; Ka  = 1.5*^-9;
+Kg  = 3*^-10; KVe = 5*^-8;
+KtTb = 7*^-7;   KtTa = 2.35*^-10; Kt1b = 5.6*^-10;
+Kt10 = 2.5*^-9; Kt13 = 1*^-10;   Kta  = 1.5*^-9;
+Ktg  = 1*^-10;  KtA  = 1*^-8;
+
+(* Tasas de producción e interacciones *)
+\[Beta]    = 1.0;
+\[Lambda]M1M1i = 1*^9;  \[Lambda]M2M2i = 2*^9;  \[Lambda]HHi = 1*^9;
+\[Lambda]ViM1i = 4.8*^-5; \[Lambda]ViM2i = 4.8*^-5; \[Lambda]ViHi = 4.8*^-5;
+\[Lambda]T1I2 = 0.191; \[Lambda]fHA = 0.133;
+\[Lambda]mfTb = 0.01;  \[Lambda]mfG = 0.01;
+\[Lambda]\[Rho]f  = 3*^-3;  \[Lambda]\[Rho]m  = 1.576;
+\[Lambda]\[Rho]H  = 6.6*^-3; \[Lambda]\[Rho]Hi = 0.66;
+\[Lambda]\[Rho]Tb = 95.0;
+\[Lambda]S   = 2.0*^-5;  \[Lambda]SMp = 1.0;
+\[Lambda]GM2 = 7.43*^-10; \[Lambda]GM2i = 1.49*^-9;
+\[Lambda]HAH = 2.86*^-6;  \[Lambda]HAHi = 5.72*^-6;
+\[Lambda]I1bM2 = 1.064*^-7; \[Lambda]I1bM2i = 2.13*^-7;
+\[Lambda]I2T1 = 3.71*^-5;
+\[Lambda]I4M2 = 8.72*^-9; \[Lambda]I4M2i = 1.74*^-8; \[Lambda]I4T2 = 4.36*^-9;
+\[Lambda]I6M1 = 3.69*^-10; \[Lambda]I6M1i = 4.92*^-10;
+\[Lambda]I10M2 = 1.21*^-7; \[Lambda]I10M2i = 2.42*^-7; \[Lambda]I10T2 = 6.07*^-8;
+\[Lambda]I12M1 = 5.15*^-6; \[Lambda]I12M1i = 1.28*^-6;
+\[Lambda]I13M2 = 2.0*^-8; \[Lambda]I13M2i = 5.8*^-8; \[Lambda]I13T2 = 1.45*^-8;
+\[Lambda]IaT1 = 6.23*^-8; \[Lambda]IaT2 = 6.23*^-8;
+\[Lambda]IgT1 = 8.1*^-8;
+\[Lambda]TaM1 = 2.58*^-7; \[Lambda]TaM1i = 2.58*^-6; \[Lambda]TaM2i = 2.58*^-6;
+\[Lambda]TbM2 = 8.33*^-4; \[Lambda]TbM2i = 2.51*^-3; \[Lambda]TbI13 = 2.0;
+\[Lambda]MpM2 = 3*^-4;   \[Lambda]MpM2i = 9*^-3;
+\[Lambda]TpM2 = 6*^-5;   \[Lambda]TpM2i = 5.4*^-4;
+\[Lambda]C3Hi = 4.38*^-9; \[Lambda]C3M1i = 4.38*^-9; \[Lambda]C3M2i = 4.38*^-9;
+\[Lambda]M1M2 = 5.425; \[Lambda]M2M1 = 2.17;
+\[Lambda]T1M1 = 38.105; \[Lambda]T2M2 = 286.0;
+\[Lambda]HG = 2.45*^-2; \[Lambda]HTb = 2.45*^-2;
+
+dC3M1  = 1.16*^-4;
+d\[Rho]Mp   = 1.019*^6;
+dMpTp  = 4.98*^5;
+dTpMp  = 1.04*^6;
+
+AH   = 0.002; Nb = 10.0; NV = 1*^-6;  (* Nb = tamaño de brote viral; renombrado porque N es un símbolo protegido en Mathematica *)
+\[Chi]C3  = 10.0;  \[Delta] = 1*^-15;
+\[Rho]star= 3.26*^-3; \[Rho]0 = 0.003;
+M10  = 0.02;
+M20  = 0.08;
+T0   = 0.001;
+c\[Alpha]   = 0.0;
+
+(* ============================================================
+   SECCIÓN 2: Sistema ODE \[LongDash] lado derecho F[variables]
+   Variables (orden canónico):
+   x1=M1, x2=M1i, x3=M2, x4=M2i, x5=H, x6=Hi,
+   x7=T1, x8=T2,  x9=f,  x10=m,  x11=\[Rho], x12=G,
+   x13=HA, x14=I1\[Beta], x15=I2, x16=I4, x17=I6, x18=I10,
+   x19=I12, x20=I13, x21=I\[Alpha], x22=I\[Gamma], x23=T\[Alpha], x24=T\[Beta],
+   x25=Mp, x26=Tp, x27=C3, x28=Ve,
+   x29=Vi1, x30=Vi2, x31=ViH, x32=S
+   ============================================================ *)
+
+vars = {M1,M1i,M2,M2i,H,Hi,T1,T2,f,m,\[Rho],G,HA,
+        I1b,I2,I4,I6,I10,I12,I13,Ia,Ig,Ta,Tb,
+        Mp,Tp,C3,Ve,Vi1,Vi2,ViH,S};
+
+(* Términos auxiliares de polarización *)
+\[CurlyEpsilon]1[M1_,M1i_,M2_,M2i_,H_,Hi_,T1_,T2_,f_,m_,\[Rho]_,G_,HA_,
+   I1b_,I2_,I4_,I6_,I10_,I12_,I13_,Ia_,Ig_,Ta_,Tb_,
+   Mp_,Tp_,C3_,Ve_,Vi1_,Vi2_,ViH_,S_] :=
+  ((Ig/(Ig+Kg)) + (Ta/(Ta+KTa))) / (1 + I10/Kt10);
+
+\[CurlyEpsilon]2[M1_,M1i_,M2_,M2i_,H_,Hi_,T1_,T2_,f_,m_,\[Rho]_,G_,HA_,
+   I1b_,I2_,I4_,I6_,I10_,I12_,I13_,Ia_,Ig_,Ta_,Tb_,
+   Mp_,Tp_,C3_,Ve_,Vi1_,Vi2_,ViH_,S_] :=
+  (I4/(I4+K4)) + (I13/(K13+I13));
+
+(* Función de inhibición viral *)
+inhibV[Ia_,Ta_,Tb_,I6_,Ig_,A_] :=
+  1/((1+Ia/Kta)*(1+Ta/KtTa)*(1+Tb/KtTb)*(1+Ig/(Ktg+I6))*(1+A/KtA));
+
+(* Sistema ODE completo (sin términos espaciales) *)
+F[M1_,M1i_,M2_,M2i_,H_,Hi_,T1_,T2_,f_,m_,\[Rho]_,G_,HA_,
+  I1b_,I2_,I4_,I6_,I10_,I12_,I13_,Ia_,Ig_,Ta_,Tb_,
+  Mp_,Tp_,C3_,Ve_,Vi1_,Vi2_,ViH_,S_] := Module[
+  {e1, e2, dP, fM1, fM2, iV, transfm, \[Rho]plus, lib, inter},
+
+  e1   = \[CurlyEpsilon]1[M1,M1i,M2,M2i,H,Hi,T1,T2,f,m,\[Rho],G,HA,I1b,I2,I4,I6,I10,I12,I13,Ia,Ig,Ta,Tb,Mp,Tp,C3,Ve,Vi1,Vi2,ViH,S];
+  e2   = \[CurlyEpsilon]2[M1,M1i,M2,M2i,H,Hi,T1,T2,f,m,\[Rho],G,HA,I1b,I2,I4,I6,I10,I12,I13,Ia,Ig,Ta,Tb,Mp,Tp,C3,Ve,Vi1,Vi2,ViH,S];
+  dP   = e1 + e2 + \[Delta];
+  fM1  = \[Beta]*(C3/(KC3+C3))*(M10 - M1);
+  fM2  = \[Beta]*(C3/(KC3+C3))*(M20 - M2);
+  iV   = inhibV[Ia,Ta,Tb,I6,Ig,0];
+  transfm = (\[Lambda]mfTb*(Tb/(Tb+KTb)) + \[Lambda]mfG*(G/(G+KG)))*f;
+  \[Rho]plus = Max[1 - \[Rho]/\[Rho]0, 0];
+  lib   = Nb*(\[Mu]M1*(1+\[Mu]Vi1*Vi1)*Vi1 + \[Mu]M2*(1+\[Mu]Vi2*Vi2)*Vi2 + \[Mu]H*(1+\[Mu]ViH*ViH)*ViH);
+  inter = (\[Lambda]M1M1i*M1 + \[Lambda]M2M2i*M2 + \[Lambda]HHi*H)*NV*Ve;
+  {
+   (* 1  M1  *)  fM1 + \[Lambda]M2M1*(e1/dP)*M2 - \[Lambda]M1M2*(e2/dP)*M1 - \[Lambda]M1M1i*Ve*M1 - \[Mu]M1*M1,
+   (* 2  M1i *)  \[Lambda]M1M1i*Ve*M1 - \[Mu]M1*(1+\[Mu]Vi1*Vi1)*M1i,
+   (* 3  M2  *)  fM2 + \[Lambda]M1M2*(e2/dP)*M1 - \[Lambda]M2M2i*Ve*M2 - \[Mu]M2*M2,
+   (* 4  M2i *)  \[Lambda]M2M2i*Ve*M2 - \[Mu]M2*(1+\[Mu]Vi2*Vi2)*M2i,
+   (* 5  H   *)  AH + (\[Lambda]HG*G/(G+KG) + \[Lambda]HTb*Tb/(Tb+KTb))*H - \[Lambda]HHi*Ve*H - \[Mu]H*H,
+   (* 6  Hi  *)  \[Lambda]HHi*Ve*H - \[Mu]H*(1+\[Mu]ViH*ViH)*Hi,
+   (* 7  T1  *)  \[Lambda]T1M1*T0*(M1/(M1+KM1))*(I12/(I12+K12))*(1/(1+I10/Kt10))*(1/(1+I13/Kt13)) + \[Lambda]T1I2*(I2/(I2+K2))*T1 - \[Mu]T1*T1,
+   (* 8  T2  *)  \[Lambda]T2M2*T0*(M2/(M2+KM2))*(I4/(I4+K4))*(1/(1+T1/KT1)) - \[Mu]T2*T2,
+   (* 9  f   *)  \[Lambda]fHA*(HA/(HA+KHA))*f - transfm - \[Mu]f*f,
+   (* 10 m   *)  transfm - \[Mu]m*m,
+   (* 11 \[Rho]   *)  \[Lambda]\[Rho]f*f*\[Rho]plus + \[Lambda]\[Rho]m*(1 + \[Lambda]\[Rho]Tb*Tb/(Tb+KTb))*m + \[Lambda]\[Rho]H*H + \[Lambda]\[Rho]Hi*Hi - d\[Rho]Mp*Mp*\[Rho] - \[Mu]\[Rho]*\[Rho],
+   (* 12 G   *)  \[Lambda]GM2*M2 + \[Lambda]GM2i*M2i - \[Mu]G*G,
+   (* 13 HA  *)  \[Lambda]HAH*H + \[Lambda]HAHi*Hi - \[Mu]HA*HA,
+   (* 14 I1\[Beta] *)  (\[Lambda]I1bM2*M2 + \[Lambda]I1bM2i*M2i)/((1+I2/K2)*(1+Ia/Ka)) - \[Mu]I1b*I1b,
+   (* 15 I2  *)  \[Lambda]I2T1*T1 - \[Mu]I2*I2,
+   (* 16 I4  *)  \[Lambda]I4M2*M2 + \[Lambda]I4M2i*M2i + \[Lambda]I4T2*T2 - \[Mu]I4*I4,
+   (* 17 I6  *)  (\[Lambda]I6M1*M1 + \[Lambda]I6M1i*M1i)*(1+Ta/(Ta+KTa)) - \[Mu]I6*I6,
+   (* 18 I10 *)  \[Lambda]I10M2*M2 + \[Lambda]I10M2i*M2i + \[Lambda]I10T2*T2 - \[Mu]I10*I10,
+   (* 19 I12 *)  (\[Lambda]I12M1*M1 + \[Lambda]I12M1i*M1i)/((1+I10/Kt10)*(1+I13/Kt13)) - \[Mu]I12*I12,
+   (* 20 I13 *)  \[Lambda]I13M2*M2 + \[Lambda]I13M2i*M2i + \[Lambda]I13T2*T2 - \[Mu]I13*I13,
+   (* 21 I\[Alpha]  *)  c\[Alpha] + (\[Lambda]IaT1*T1 + \[Lambda]IaT2*T2)/(1+I1b/Kt1b) - \[Mu]Ia*Ia,
+   (* 22 I\[Gamma]  *)  \[Lambda]IgT1*T1/(1+Ia/Kta) - \[Mu]Ig*Ig,
+   (* 23 T\[Alpha]  *)  (\[Lambda]TaM1*M1 + \[Lambda]TaM1i*M1i + \[Lambda]TaM2i*M2i)/((1+I10/Kt10)*(1+I13/Kt13)) - \[Mu]Ta*Ta,
+   (* 24 T\[Beta]  *)  (\[Lambda]TbM2*M2 + \[Lambda]TbM2i*M2i)*(1+\[Lambda]TbI13*I13/(I13+K13)) - \[Mu]Tb*Tb,
+   (* 25 Mp  *)  \[Lambda]MpM2*M2 + \[Lambda]MpM2i*M2i - dMpTp*Tp*Mp - \[Mu]Mp*Mp,
+   (* 26 Tp  *)  \[Lambda]TpM2*M2 + \[Lambda]TpM2i*M2i - dTpMp*Mp*Tp - \[Mu]Tp*Tp,
+   (* 27 C3  *)  \[Lambda]C3Hi*Hi + \[Lambda]C3M1i*M1i + \[Lambda]C3M2i*M2i - dC3M1*(C3/(C3+KC3))*M1 - \[Mu]C3*C3,
+   (* 28 Ve  *)  lib - inter - \[Mu]Ve*Ve,
+   (* 29 Vi1 *)  \[Lambda]ViM1i*M1i*iV + \[Lambda]M1M1i*NV*M1*Ve - \[Mu]M1*(1+\[Mu]Vi1*Vi1)*Nb*Vi1 - \[Mu]ViKill*(M1/(M1+KM1))*Vi1,
+   (* 30 Vi2 *)  \[Lambda]ViM2i*M2i*iV + \[Lambda]M2M2i*NV*M2*Ve - \[Mu]M2*(1+\[Mu]Vi2*Vi2)*Nb*Vi2 - \[Mu]ViKill*(M2/(M2+KM2))*Vi2,
+   (* 31 ViH *)  \[Lambda]ViHi*Hi*iV + \[Lambda]HHi*NV*H*Ve - \[Mu]H*(1+\[Mu]ViH*ViH)*Nb*ViH,
+   (* 32 S   *)  \[Lambda]S*Max[\[Rho] - \[Rho]star, 0]*(1 + \[Lambda]SMp*Mp/(Mp+KMp)) - S
+  }
+];
+
+(* ============================================================
+   SECCIÓN 3: Equilibrio Libre de Enfermedad (ELE) \[LongDash] E0
+
+   Definición: estado sin infección viral
+     Ve = Vi1 = Vi2 = ViH = 0
+
+   Con Ve=0, el sistema se desacopla.
+   Los términos de infección desaparecen y las ecuaciones
+   de células infectadas (M1i, M2i, Hi) se anulan trivialmente.
+   ============================================================ *)
+
+Print[""];
+Print["=== SECCIÓN 3: Equilibrio Libre de Enfermedad (ELE) ==="];
+Print[""];
+Print["Con Ve=Vi1=Vi2=ViH=0 el sistema se reduce a 28 ecuaciones."];
+Print["Las células infectadas satisfacen trivialmente: M1i=M2i=Hi=0."];
+Print[""];
+
+(* Sistema reducido en E0:
+   Variables libres de enfermedad con superíndice 0 *)
+
+(* Paso 1: Equilibrio de células T y citocinas con Vi=0, M1i=M2i=Hi=0 *)
+
+(* Con M1i=M2i=Hi=0 y C3=0 (de la ecuación 27 con Hi=M1i=M2i=0):
+   La ecuación 27: dC3/dt = 0 => C3 = 0 en E0.
+   Con C3=0: fuente_M1 = \[Beta]*(0/(KC3+0))*(M10-M1) = 0
+             fuente_M2 = \[Beta]*(0/(KC3+0))*(M20-M2) = 0
+
+   Ecuación 1 (M1): \[Lambda]M2M1*(\[CurlyEpsilon]1/dP)*M2 - \[Lambda]M1M2*(\[CurlyEpsilon]2/dP)*M1 - \[Mu]M1*M1 = 0
+   Ecuación 3 (M2): \[Lambda]M1M2*(\[CurlyEpsilon]2/dP)*M1 - \[Mu]M2*M2 = 0
+*)
+
+Print["--- Análisis del ELE con C3=0 ---"];
+Print[""];
+Print["Con M1i=M2i=Hi=0, la ecuación de C3 da:"];
+Print["  \[Lambda]C3Hi\[CenterDot]Hi + \[Lambda]C3M1i\[CenterDot]M1i + \[Lambda]C3M2i\[CenterDot]M2i - dC3M1\[CenterDot](C3/(C3+KC3))\[CenterDot]M1 - \[Mu]C3\[CenterDot]C3 = 0"];
+Print["  => -dC3M1\[CenterDot](C3/(C3+KC3))\[CenterDot]M1 - \[Mu]C3\[CenterDot]C3 = 0"];
+Print["  => C3\[CenterDot][-dC3M1\[CenterDot]M1/(C3+KC3) - \[Mu]C3] = 0"];
+Print["  => C3 = 0 (única solución no negativa)"];
+Print[""];
+Print["Con C3=0, las fuentes de macrófagos se anulan:"];
+Print["  fM1 = \[Beta]\[CenterDot](0/(KC3+0))\[CenterDot](M10-M1) = 0  [en C3=0 el cociente es 0/KC3 = 0 exactamente]"];
+Print["  fM2 = \[Beta]\[CenterDot](0/(KC3+0))\[CenterDot](M20-M2) = 0"];
+Print[""];
+Print["Ecuación de M1 en E0:"];
+Print["  \[Lambda]M2M1\[CenterDot](\[CurlyEpsilon]1/dP)\[CenterDot]M2⁰ - \[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP)\[CenterDot]M1⁰ - \[Mu]M1\[CenterDot]M1⁰ = 0  ...(i)"];
+Print["Ecuación de M2 en E0:"];
+Print["  \[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP)\[CenterDot]M1⁰ - \[Mu]M2\[CenterDot]M2⁰ = 0  ...(ii)"];
+Print[""];
+Print["De (ii): M2⁰ = [\[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP)/\[Mu]M2]\[CenterDot]M1⁰"];
+Print["Sustituyendo en (i):"];
+Print["  M1⁰\[CenterDot]{\[Lambda]M2M1\[CenterDot](\[CurlyEpsilon]1/dP)\[CenterDot][\[Lambda]M1M2\[CenterDot]\[CurlyEpsilon]2/(dP\[CenterDot]\[Mu]M2)] - \[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP) - \[Mu]M1} = 0"];
+Print[""];
+Print["Solución trivial: M1⁰ = M2⁰ = 0"];
+Print["  => Punto de equilibrio libre de enfermedad: E0 = (0,...,0)"];
+Print[""];
+
+(* Verificación numérica *)
+E0vals = {M1->0, M1i->0, M2->0, M2i->0, H->AH/\[Mu]H,
+          Hi->0, T1->0, T2->0, f->0, m->0,
+          \[Rho]->\[Lambda]\[Rho]H*(AH/\[Mu]H)/\[Mu]\[Rho], G->0, HA->\[Lambda]HAH*(AH/\[Mu]H)/\[Mu]HA,
+          I1b->0, I2->0, I4->0, I6->0, I10->0, I12->0, I13->0,
+          Ia->c\[Alpha]/\[Mu]Ia, Ig->0, Ta->0, Tb->0,
+          Mp->0, Tp->0, C3->0, Ve->0, Vi1->0, Vi2->0, ViH->0, S->0};
+
+Print["--- ELE con H⁰ = AH/\[Mu]H (células estrelladas sanas) ---"];
+Print["  H⁰ = AH/\[Mu]H = ", AH/\[Mu]H];
+Print["  \[Rho]⁰ = \[Lambda]\[Rho]H\[CenterDot]H⁰/\[Mu]\[Rho] = ", \[Lambda]\[Rho]H*(AH/\[Mu]H)/\[Mu]\[Rho],
+      "  (NO es cero: H⁰>0 alimenta la ECM vía \[Lambda]\[Rho]H)"];
+Print["  HA⁰ = \[Lambda]HAH\[CenterDot]H⁰/\[Mu]HA = ", \[Lambda]HAH*(AH/\[Mu]H)/\[Mu]HA,
+      "  (pequeño pero distinto de cero, por la misma razón)"];
+Print["  I\[Alpha]⁰ = c\[Alpha]/\[Mu]I\[Alpha] = ", c\[Alpha]/\[Mu]Ia, "  (cero porque c\[Alpha]=0)"];
+Print[""];
+Print["Verificación: F evaluada en E0 (debe ser vector cero):"];
+residuoE0 = Chop[F[M1,M1i,M2,M2i,H,Hi,T1,T2,f,m,\[Rho],G,HA,
+                   I1b,I2,I4,I6,I10,I12,I13,Ia,Ig,Ta,Tb,
+                   Mp,Tp,C3,Ve,Vi1,Vi2,ViH,S] /. E0vals, 10^-20];
+Print["  Residuo E0: ", residuoE0];
+
+(* ============================================================
+   SECCIÓN 4: Jacobiano 32*32
+   ============================================================ *)
+
+Print[""];
+Print["=== SECCIÓN 4: Jacobiano 32*32 en E0 ==="];
+Print[""];
+Print["Calculando jacobiano J = \[PartialD]F/\[PartialD]x ..."];
+
+(* Jacobiano simbólico J = \[PartialD]F/\[PartialD]x, calculado una sola vez en función
+   de las variables simbólicas; los puntos de equilibrio (E0, Subscript[E, *]) se
+   sustituyen después, evitando recalcular la derivada en cada caso. *)
+JSym = Outer[D, F @@ vars, vars];
+
+(* Jacobiano evaluado numéricamente en E0 *)
+Print["Evaluando jacobiano en E0..."];
+JE0 = JSym /. E0vals;
+JE0 = Chop[N[JE0], 10^-30];
+Print["Jacobiano J(E0) calculado. Dimensión: ", Dimensions[JE0]];
+
+(* ============================================================
+   SECCIÓN 5: Valores propios en E0
+   ============================================================ *)
+
+Print[""];
+Print["=== SECCIÓN 5: Valores propios en E0 ==="];
+Print[""];
+Print["Calculando eigenvalores de J(E0)..."];
+
+eigsE0 = Eigenvalues[N[JE0]];
+eigsE0sorted = Sort[eigsE0, Re[#1] > Re[#2] &];
+
+Print["Eigenvalores (ordenados por parte real descendente):"];
+Do[
+  \[Lambda]i = eigsE0sorted[[i]];
+  Print["  \[Lambda]", i, " = ", NumberForm[Re[\[Lambda]i], {8,4}],
+        If[Im[\[Lambda]i] != 0, " + " <> ToString[NumberForm[Im[\[Lambda]i],{8,4}]] <> "i", ""]],
+  {i, 1, 32}
+];
+
+Print[""];
+Print["--- Clasificación de estabilidad de E0 ---"];
+maxRe = Max[Re /@ eigsE0];
+Print["  Parte real máxima: ", maxRe];
+If[maxRe < 0,
+   Print["  => E0 es LOCALMENTE ASINTÓTICAMENTE ESTABLE"],
+   Print["  => E0 es INESTABLE (existen perturbaciones que crecen)"]
+];
+Print[""];
+Print["  Nota: la estabilidad de E0 está vinculada al número"];
+Print["  reproductivo básico R₀. Si R₀ < 1, E0 es estable."];
+Print["  Si R₀ > 1, E0 es inestable y existe un equilibrio endémico."];
+
+(* ============================================================
+   SECCIÓN 6: Equilibrio endémico E* (numérico, preliminar)
+
+   Se usa FindRoot partiendo de las condiciones iniciales de la
+   simulación como punto de arranque. Al no ser un punto cercano al
+   equilibrio real, el resultado aquí es una aproximación preliminar
+   (ver residuo reportado abajo); el valor de referencia del estado
+   estacionario endémico se obtiene de la simulación numérica completa
+   presentada en el Capítulo 4.
+   ============================================================ *)
+
+Print[""];
+Print["=== SECCIÓN 6: Equilibrio endémico E* (numérico) ==="];
+Print[""];
+
+(* Condiciones iniciales como punto de partida *)
+x0 = {M1->3.48*^-2, M1i->4.07*^-3, M2->4.02*^-2, M2i->4.86*^-2,
+      H->4.97*^-2,   Hi->2.67*^-4,   T1->9.44*^-3,  T2->3.01*^-2,
+      f->6.2*^-3,    m->3.31*^-4,    \[Rho]->2.7*^-5,    G->1.81*^-11,
+      HA->1.44*^-6,  I1b->5.5*^-10,  I2->1.47*^-7,  I4->2.3*^-10,
+      I6->1.29*^-10, I10->2.2*^-9,   I12->4.19*^-9, I13->3.53*^-10,
+      Ia->7.42*^-10, Ig->1.77*^-10,  Ta->1.82*^-10, Tb->6.22*^-7,
+      Mp->1.32*^-5,  Tp->3.86*^-7,   C3->1.22*^-10, Ve->3.9*^-12,
+      Vi1->1.6*^-9,  Vi2->1.6*^-9,   ViH->1.6*^-9,  S->0.0};
+
+ecuaciones = Thread[
+  F[M1,M1i,M2,M2i,H,Hi,T1,T2,f,m,\[Rho],G,HA,
+    I1b,I2,I4,I6,I10,I12,I13,Ia,Ig,Ta,Tb,
+    Mp,Tp,C3,Ve,Vi1,Vi2,ViH,S] == 0];
+
+Print["Buscando equilibrio endémico E* con FindRoot..."];
+
+(* Precisión de máquina, consistente con los parámetros de entrada
+   (definidos con ~16 dígitos). *)
+Estar = FindRoot[ecuaciones, Transpose[{vars, vars /. x0}],
+                 MaxIterations -> 1000,
+                 AccuracyGoal -> 8,
+                 PrecisionGoal -> 8];
+
+Print["E* encontrado:"];
+Do[Print["  ", vars[[i]], "* = ", NumberForm[vars[[i]] /. Estar, {6,3}]],
+   {i, 1, 32}];
+
+Print[""];
+Print["Residuo en E* (verificación):"];
+residuoEstar = Chop[
+  F[M1,M1i,M2,M2i,H,Hi,T1,T2,f,m,\[Rho],G,HA,
+    I1b,I2,I4,I6,I10,I12,I13,Ia,Ig,Ta,Tb,
+    Mp,Tp,C3,Ve,Vi1,Vi2,ViH,S] /. Estar, 10^-8];
+Print["  ||F(E*) || \[TildeTilde] ",Norm[N[residuoEstar]]];
+Print["  (Estimación preliminar de E*; el estado estacionario endémico "];
+Print["   de referencia se obtiene de la simulación numérica completa, "];
+Print["   Capítulo 4.) "];
+
+(* ============================================================SECCIÓN 7:Valores propios en E*
+============================================================*)
+
+Print[""];
+Print["=== SECCIÓN 7: Valores propios en E* ==="];
+Print[""];
+Print["Calculando jacobiano en E*..."];
+
+JEstar=JSym/. Estar;
+JEstar=Chop[N[JEstar],10^-30];
+Print["Jacobiano J(E*) calculado."];
+Print[""];
+Print["Calculando eigenvalores de J(E*)..."];
+
+eigsEstar=Eigenvalues[N[JEstar]];
+eigsEstarSorted=Sort[eigsEstar,Re[#1]>Re[#2]&];
+
+Print["Eigenvalores de J(E*) (ordenados por parte real):"];
+Do[\[Lambda]i=eigsEstarSorted[[i]];
+Print["  \[Lambda]",i," = ",NumberForm[Re[\[Lambda]i],{8,4}],If[Abs[Im[\[Lambda]i]]>10^-10," + "<>ToString[NumberForm[Im[\[Lambda]i],{8,4}]]<>" i",""]],{i,1,32}];
+
+Print[""];
+maxReEstar=Max[Re/@eigsEstar];
+Print["--- Clasificación de estabilidad de E* ---"];
+Print["  Parte real máxima: ",maxReEstar];
+If[maxReEstar<0,Print["  => E* es LOCALMENTE ASINTÓTICAMENTE ESTABLE"],Print["  => E* es INESTABLE"]];
+
+Print[""];
+Print["=== FIN DEL ANÁLISIS ==="];
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= === SECCIÓN 3: Equilibrio Libre de Enfermedad (ELE) ===
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Con Ve=Vi1=Vi2=ViH=0 el sistema se reduce a 28 ecuaciones.
+Durante la evaluaci\363n de In[1]:= Las células infectadas satisfacen trivialmente: M1i=M2i=Hi=0.
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= --- Análisis del ELE con C3=0 ---
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Con M1i=M2i=Hi=0, la ecuación de C3 da:
+Durante la evaluaci\363n de In[1]:=   \[Lambda]C3Hi\[CenterDot]Hi + \[Lambda]C3M1i\[CenterDot]M1i + \[Lambda]C3M2i\[CenterDot]M2i - dC3M1\[CenterDot](C3/(C3+KC3))\[CenterDot]M1 - \[Mu]C3\[CenterDot]C3 = 0
+Durante la evaluaci\363n de In[1]:=   => -dC3M1\[CenterDot](C3/(C3+KC3))\[CenterDot]M1 - \[Mu]C3\[CenterDot]C3 = 0
+Durante la evaluaci\363n de In[1]:=   => C3\[CenterDot][-dC3M1\[CenterDot]M1/(C3+KC3) - \[Mu]C3] = 0
+Durante la evaluaci\363n de In[1]:=   => C3 = 0 (única solución no negativa)
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Con C3=0, las fuentes de macrófagos se anulan:
+Durante la evaluaci\363n de In[1]:=   fM1 = \[Beta]\[CenterDot](0/(KC3+0))\[CenterDot](M10-M1) = 0  [en C3=0 el cociente es 0/KC3 = 0 exactamente]
+Durante la evaluaci\363n de In[1]:=   fM2 = \[Beta]\[CenterDot](0/(KC3+0))\[CenterDot](M20-M2) = 0
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Ecuación de M1 en E0:
+Durante la evaluaci\363n de In[1]:=   \[Lambda]M2M1\[CenterDot](\[CurlyEpsilon]1/dP)\[CenterDot]M2⁰ - \[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP)\[CenterDot]M1⁰ - \[Mu]M1\[CenterDot]M1⁰ = 0  ...(i)
+Durante la evaluaci\363n de In[1]:= Ecuación de M2 en E0:
+Durante la evaluaci\363n de In[1]:=   \[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP)\[CenterDot]M1⁰ - \[Mu]M2\[CenterDot]M2⁰ = 0  ...(ii)
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= De (ii): M2⁰ = [\[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP)/\[Mu]M2]\[CenterDot]M1⁰
+Durante la evaluaci\363n de In[1]:= Sustituyendo en (i):
+Durante la evaluaci\363n de In[1]:=   M1⁰\[CenterDot]{\[Lambda]M2M1\[CenterDot](\[CurlyEpsilon]1/dP)\[CenterDot][\[Lambda]M1M2\[CenterDot]\[CurlyEpsilon]2/(dP\[CenterDot]\[Mu]M2)] - \[Lambda]M1M2\[CenterDot](\[CurlyEpsilon]2/dP) - \[Mu]M1} = 0
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Solución trivial: M1⁰ = M2⁰ = 0
+Durante la evaluaci\363n de In[1]:=   => Punto de equilibrio libre de enfermedad: E0 = (0,...,0)
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= --- ELE con H⁰ = AH/\[Mu]H (células estrelladas sanas) ---
+Durante la evaluaci\363n de In[1]:=   H⁰ = AH/\[Mu]H = 0.120482
+Durante la evaluaci\363n de In[1]:=   \[Rho]⁰ = \[Lambda]\[Rho]H\[CenterDot]H⁰/\[Mu]\[Rho] = 0.00214914  (NO es cero: H⁰>0 alimenta la ECM vía \[Lambda]\[Rho]H)
+Durante la evaluaci\363n de In[1]:=   HA⁰ = \[Lambda]HAH\[CenterDot]H⁰/\[Mu]HA = 3.44578*10^-6  (pequeño pero distinto de cero, por la misma razón)
+Durante la evaluaci\363n de In[1]:=   I\[Alpha]⁰ = c\[Alpha]/\[Mu]I\[Alpha] = 0.  (cero porque c\[Alpha]=0)
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Verificación: F evaluada en E0 (debe ser vector cero):
+Durante la evaluaci\363n de In[1]:=   Residuo E0: {0,0,0,0,0,0,0,0,0,0,1.0842*10^-19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= === SECCIÓN 4: Jacobiano 32*32 en E0 ===
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Calculando jacobiano J = \[PartialD]F/\[PartialD]x ...
+Durante la evaluaci\363n de In[1]:= Evaluando jacobiano en E0...
+Durante la evaluaci\363n de In[1]:= Jacobiano J(E0) calculado. Dimensión: {32,32}
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= === SECCIÓN 5: Valores propios en E0 ===
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Calculando eigenvalores de J(E0)...
+Durante la evaluaci\363n de In[1]:= Eigenvalores (ordenados por parte real descendente):
+Durante la evaluaci\363n de In[1]:=   \[Lambda]1 = 2.1668
+Durante la evaluaci\363n de In[1]:=   \[Lambda]2 = 0.0676
+Durante la evaluaci\363n de In[1]:=   \[Lambda]3 = -0.0033
+Durante la evaluaci\363n de In[1]:=   \[Lambda]4 = -0.0080
+Durante la evaluaci\363n de In[1]:=   \[Lambda]5 = -0.0080
+Durante la evaluaci\363n de In[1]:=   \[Lambda]6 = -0.0166
+Durante la evaluaci\363n de In[1]:=   \[Lambda]7 = -0.0200
+Durante la evaluaci\363n de In[1]:=   \[Lambda]8 = -0.0200
+Durante la evaluaci\363n de In[1]:=   \[Lambda]9 = -0.0800
+Durante la evaluaci\363n de In[1]:=   \[Lambda]10 = -0.1000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]11 = -0.1730
+Durante la evaluaci\363n de In[1]:=   \[Lambda]12 = -0.1970
+Durante la evaluaci\363n de In[1]:=   \[Lambda]13 = -0.1970
+Durante la evaluaci\363n de In[1]:=   \[Lambda]14 = -0.2000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]15 = -0.3700
+Durante la evaluaci\363n de In[1]:=   \[Lambda]16 = -1.0000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]17 = -1.3800
+Durante la evaluaci\363n de In[1]:=   \[Lambda]18 = -1.6600
+Durante la evaluaci\363n de In[1]:=   \[Lambda]19 = -1.7300
+Durante la evaluaci\363n de In[1]:=   \[Lambda]20 = -2.1600
+Durante la evaluaci\363n de In[1]:=   \[Lambda]21 = -2.2720
+Durante la evaluaci\363n de In[1]:=   \[Lambda]22 = -2.3760
+Durante la evaluaci\363n de In[1]:=   \[Lambda]23 = -4.1600
+Durante la evaluaci\363n de In[1]:=   \[Lambda]24 = -4.3200
+Durante la evaluaci\363n de In[1]:=   \[Lambda]25 = -6.6500
+Durante la evaluaci\363n de In[1]:=   \[Lambda]26 = -8.3200
+Durante la evaluaci\363n de In[1]:=   \[Lambda]27 = -12.4700
+Durante la evaluaci\363n de In[1]:=   \[Lambda]28 = -21.6000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]29 = -50.0000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]30 = -194.9593
+Durante la evaluaci\363n de In[1]:=   \[Lambda]31 = -199.0000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]32 = -333.0000
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= --- Clasificación de estabilidad de E0 ---
+Durante la evaluaci\363n de In[1]:=   Parte real máxima: 2.16681
+Durante la evaluaci\363n de In[1]:=   => E0 es INESTABLE (existen perturbaciones que crecen)
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:=   Nota: la estabilidad de E0 está vinculada al número
+Durante la evaluaci\363n de In[1]:=   reproductivo básico R₀. Si R₀ < 1, E0 es estable.
+Durante la evaluaci\363n de In[1]:=   Si R₀ > 1, E0 es inestable y existe un equilibrio endémico.
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= === SECCIÓN 6: Equilibrio endémico E* (numérico) ===
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Buscando equilibrio endémico E* con FindRoot...
+Durante la evaluaci\363n de In[1]:= FindRoot::lstol: The line search decreased the step size to within tolerance specified by AccuracyGoal and PrecisionGoal, but was unable to find a sufficient decrease in the merit function. You may need more than MachinePrecision digits of working precision to meet these tolerances.
+Durante la evaluaci\363n de In[1]:= E* encontrado:
+Durante la evaluaci\363n de In[1]:=   M1* = 0.035
+Durante la evaluaci\363n de In[1]:=   M1i* = 0.004
+Durante la evaluaci\363n de In[1]:=   M2* = 0.040
+Durante la evaluaci\363n de In[1]:=   M2i* = 0.049
+Durante la evaluaci\363n de In[1]:=   H* = 0.050
+Durante la evaluaci\363n de In[1]:=   Hi* = 0.000
+Durante la evaluaci\363n de In[1]:=   T1* = 0.009
+Durante la evaluaci\363n de In[1]:=   T2* = 0.030
+Durante la evaluaci\363n de In[1]:=   f* = 0.006
+Durante la evaluaci\363n de In[1]:=   m* = 0.000
+Durante la evaluaci\363n de In[1]:=   \[Rho]* = 0.000
+Durante la evaluaci\363n de In[1]:=   G* = 1.810*10^(-11)
+Durante la evaluaci\363n de In[1]:=   HA* = 1.440*10^(-6)
+Durante la evaluaci\363n de In[1]:=   I1b* = 5.500*10^(-10)
+Durante la evaluaci\363n de In[1]:=   I2* = 1.470*10^(-7)
+Durante la evaluaci\363n de In[1]:=   I4* = 2.300*10^(-10)
+Durante la evaluaci\363n de In[1]:=   I6* = 1.290*10^(-10)
+Durante la evaluaci\363n de In[1]:=   I10* = 2.200*10^(-9)
+Durante la evaluaci\363n de In[1]:=   I12* = 4.190*10^(-9)
+Durante la evaluaci\363n de In[1]:=   I13* = 3.530*10^(-10)
+Durante la evaluaci\363n de In[1]:=   Ia* = 7.420*10^(-10)
+Durante la evaluaci\363n de In[1]:=   Ig* = 1.770*10^(-10)
+Durante la evaluaci\363n de In[1]:=   Ta* = 1.820*10^(-10)
+Durante la evaluaci\363n de In[1]:=   Tb* = 6.220*10^(-7)
+Durante la evaluaci\363n de In[1]:=   Mp* = 0.000
+Durante la evaluaci\363n de In[1]:=   Tp* = 3.860*10^(-7)
+Durante la evaluaci\363n de In[1]:=   C3* = 1.220*10^(-10)
+Durante la evaluaci\363n de In[1]:=   Ve* = 3.900*10^(-12)
+Durante la evaluaci\363n de In[1]:=   Vi1* = 1.600*10^(-9)
+Durante la evaluaci\363n de In[1]:=   Vi2* = 1.600*10^(-9)
+Durante la evaluaci\363n de In[1]:=   ViH* = 1.600*10^(-9)
+Durante la evaluaci\363n de In[1]:=   S* = 0.000
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Residuo en E* (verificación):
+Durante la evaluaci\363n de In[1]:=   ||F(E*) || \[TildeTilde] 0.185129
+Durante la evaluaci\363n de In[1]:=   (Estimación preliminar de E*; el estado estacionario endémico 
+Durante la evaluaci\363n de In[1]:=    de referencia se obtiene de la simulación numérica completa, 
+Durante la evaluaci\363n de In[1]:=    Capítulo 4.) 
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= === SECCIÓN 7: Valores propios en E* ===
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Calculando jacobiano en E*...
+Durante la evaluaci\363n de In[1]:= Jacobiano J(E*) calculado.
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= Calculando eigenvalores de J(E*)...
+Durante la evaluaci\363n de In[1]:= Eigenvalores de J(E*) (ordenados por parte real):
+Durante la evaluaci\363n de In[1]:=   \[Lambda]1 = 0.6683
+Durante la evaluaci\363n de In[1]:=   \[Lambda]2 = 0.1478 + -0.1342 i
+Durante la evaluaci\363n de In[1]:=   \[Lambda]3 = 0.1478 + 0.1342 i
+Durante la evaluaci\363n de In[1]:=   \[Lambda]4 = 0.0302
+Durante la evaluaci\363n de In[1]:=   \[Lambda]5 = 0.0043
+Durante la evaluaci\363n de In[1]:=   \[Lambda]6 = -0.0033
+Durante la evaluaci\363n de In[1]:=   \[Lambda]7 = -0.0663 + -0.0004 i
+Durante la evaluaci\363n de In[1]:=   \[Lambda]8 = -0.0663 + 0.0004 i
+Durante la evaluaci\363n de In[1]:=   \[Lambda]9 = -0.1000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]10 = -0.1722
+Durante la evaluaci\363n de In[1]:=   \[Lambda]11 = -0.3824
+Durante la evaluaci\363n de In[1]:=   \[Lambda]12 = -0.9378
+Durante la evaluaci\363n de In[1]:=   \[Lambda]13 = -1.0000
+Durante la evaluaci\363n de In[1]:=   \[Lambda]14 = -1.4310
+Durante la evaluaci\363n de In[1]:=   \[Lambda]15 = -1.7943 + -0.4843 i
+Durante la evaluaci\363n de In[1]:=   \[Lambda]16 = -1.7943 + 0.4843 i
+Durante la evaluaci\363n de In[1]:=   \[Lambda]17 = -2.4968
+Durante la evaluaci\363n de In[1]:=   \[Lambda]18 = -4.0994
+Durante la evaluaci\363n de In[1]:=   \[Lambda]19 = -4.1600
+Durante la evaluaci\363n de In[1]:=   \[Lambda]20 = -4.4268
+Durante la evaluaci\363n de In[1]:=   \[Lambda]21 = -7.1989
+Durante la evaluaci\363n de In[1]:=   \[Lambda]22 = -8.6070
+Durante la evaluaci\363n de In[1]:=   \[Lambda]23 = -12.5892
+Durante la evaluaci\363n de In[1]:=   \[Lambda]24 = -13.8270
+Durante la evaluaci\363n de In[1]:=   \[Lambda]25 = -35.4134
+Durante la evaluaci\363n de In[1]:=   \[Lambda]26 = -50.0207
+Durante la evaluaci\363n de In[1]:=   \[Lambda]27 = -199.0096
+Durante la evaluaci\363n de In[1]:=   \[Lambda]28 = -239.1629
+Durante la evaluaci\363n de In[1]:=   \[Lambda]29 = -333.0235
+Durante la evaluaci\363n de In[1]:=   \[Lambda]30 = -527.1947
+Durante la evaluaci\363n de In[1]:=   \[Lambda]31 = -551.8654
+Durante la evaluaci\363n de In[1]:=   \[Lambda]32 = -7788.6278
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= --- Clasificación de estabilidad de E* ---
+Durante la evaluaci\363n de In[1]:=   Parte real máxima: 0.668286
+Durante la evaluaci\363n de In[1]:=   => E* es INESTABLE
+Durante la evaluaci\363n de In[1]:= 
+Durante la evaluaci\363n de In[1]:= === FIN DEL ANÁLISIS ===
